@@ -10,14 +10,12 @@
 #include <stdlib.h>
 
 int main(int argc, char **argv) {
-    int i, secs;
-
     if (argc != 2) {
 	    fprintf(stderr, "Usage: %s <n>\n", argv[0]);
 	    exit(0);
     }
-    secs = atoi(argv[1]);
-    for (i = 0; i < secs; i++) {
+    int secs = atoi(argv[1]);
+    for (int i = 0; i < secs; i++) {
         sleep(1);
     }
 	exit(0);
