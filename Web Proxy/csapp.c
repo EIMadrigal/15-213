@@ -32,33 +32,33 @@
 void unix_error(char *msg) /* Unix-style error */
 {
     fprintf(stderr, "%s: %s\n", msg, strerror(errno));
-    exit(0);
+    // exit(0);
 }
 /* $end unixerror */
 
 void posix_error(int code, char *msg) /* Posix-style error */
 {
     fprintf(stderr, "%s: %s\n", msg, strerror(code));
-    exit(0);
+    // exit(0);
 }
 
 void gai_error(int code, char *msg) /* Getaddrinfo-style error */
 {
     fprintf(stderr, "%s: %s\n", msg, gai_strerror(code));
-    exit(0);
+    // exit(0);
 }
 
 void app_error(char *msg) /* Application error */
 {
     fprintf(stderr, "%s\n", msg);
-    exit(0);
+    // exit(0);
 }
 /* $end errorfuns */
 
 void dns_error(char *msg) /* Obsolete gethostbyname error */
 {
     fprintf(stderr, "%s\n", msg);
-    exit(0);
+    // exit(0);
 }
 
 
@@ -71,9 +71,11 @@ pid_t Fork(void)
 {
     pid_t pid;
 
-    if ((pid = fork()) < 0)
-	unix_error("Fork error");
-    return pid;
+    if ((pid = fork()) < 0) {
+		unix_error("Fork error");
+		exit(1);
+	}
+	return pid;
 }
 /* $end forkwrapper */
 
@@ -549,8 +551,11 @@ int Socket(int domain, int type, int protocol)
 {
     int rc;
 
-    if ((rc = socket(domain, type, protocol)) < 0)
-	unix_error("Socket error");
+    if ((rc = socket(domain, type, protocol)) < 0) {
+		unix_error("Socket error");
+		return 0;
+	}
+	
     return rc;
 }
 
@@ -558,32 +563,42 @@ void Setsockopt(int s, int level, int optname, const void *optval, int optlen)
 {
     int rc;
 
-    if ((rc = setsockopt(s, level, optname, optval, optlen)) < 0)
-	unix_error("Setsockopt error");
+    if ((rc = setsockopt(s, level, optname, optval, optlen)) < 0) {
+		unix_error("Setsockopt error");
+		return;
+	}
 }
 
 void Bind(int sockfd, struct sockaddr *my_addr, int addrlen) 
 {
     int rc;
 
-    if ((rc = bind(sockfd, my_addr, addrlen)) < 0)
-	unix_error("Bind error");
+    if ((rc = bind(sockfd, my_addr, addrlen)) < 0) {
+		unix_error("Bind error");
+		return;
+	}
 }
 
 void Listen(int s, int backlog) 
 {
     int rc;
 
-    if ((rc = listen(s,  backlog)) < 0)
-	unix_error("Listen error");
+    if ((rc = listen(s,  backlog)) < 0) {
+		unix_error("Listen error");
+		return;
+	}
+	
 }
 
 int Accept(int s, struct sockaddr *addr, socklen_t *addrlen) 
 {
     int rc;
 
-    if ((rc = accept(s, addr, addrlen)) < 0)
-	unix_error("Accept error");
+    if ((rc = accept(s, addr, addrlen)) < 0) {
+		unix_error("Accept error");
+		return 0;
+	}
+	
     return rc;
 }
 
@@ -591,8 +606,10 @@ void Connect(int sockfd, struct sockaddr *serv_addr, int addrlen)
 {
     int rc;
 
-    if ((rc = connect(sockfd, serv_addr, addrlen)) < 0)
-	unix_error("Connect error");
+    if ((rc = connect(sockfd, serv_addr, addrlen)) < 0) {
+		unix_error("Connect error");
+		return;
+	}
 }
 
 /*******************************
@@ -604,8 +621,10 @@ void Getaddrinfo(const char *node, const char *service,
 {
     int rc;
 
-    if ((rc = getaddrinfo(node, service, hints, res)) != 0) 
-        gai_error(rc, "Getaddrinfo error");
+    if ((rc = getaddrinfo(node, service, hints, res)) != 0) {
+		gai_error(rc, "Getaddrinfo error");
+		return;
+	}
 }
 /* $end getaddrinfo */
 
@@ -615,8 +634,10 @@ void Getnameinfo(const struct sockaddr *sa, socklen_t salen, char *host,
     int rc;
 
     if ((rc = getnameinfo(sa, salen, host, hostlen, serv, 
-                          servlen, flags)) != 0) 
-        gai_error(rc, "Getnameinfo error");
+                          servlen, flags)) != 0) {
+		gai_error(rc, "Getnameinfo error");
+		return;
+	}
 }
 
 void Freeaddrinfo(struct addrinfo *res)
@@ -653,8 +674,11 @@ struct hostent *Gethostbyname(const char *name)
 {
     struct hostent *p;
 
-    if ((p = gethostbyname(name)) == NULL)
-	dns_error("Gethostbyname error");
+    if ((p = gethostbyname(name)) == NULL) {
+		dns_error("Gethostbyname error");
+		return NULL;
+	}
+	
     return p;
 }
 /* $end gethostbyname */
@@ -663,8 +687,11 @@ struct hostent *Gethostbyaddr(const char *addr, int len, int type)
 {
     struct hostent *p;
 
-    if ((p = gethostbyaddr(addr, len, type)) == NULL)
-	dns_error("Gethostbyaddr error");
+    if ((p = gethostbyaddr(addr, len, type)) == NULL) {
+		dns_error("Gethostbyaddr error");
+		return NULL;
+	}
+	
     return p;
 }
 
@@ -677,30 +704,38 @@ void Pthread_create(pthread_t *tidp, pthread_attr_t *attrp,
 {
     int rc;
 
-    if ((rc = pthread_create(tidp, attrp, routine, argp)) != 0)
-	posix_error(rc, "Pthread_create error");
+    if ((rc = pthread_create(tidp, attrp, routine, argp)) != 0) {
+		posix_error(rc, "Pthread_create error");
+		return;
+	}	
 }
 
 void Pthread_cancel(pthread_t tid) {
     int rc;
 
-    if ((rc = pthread_cancel(tid)) != 0)
-	posix_error(rc, "Pthread_cancel error");
+    if ((rc = pthread_cancel(tid)) != 0) {
+		posix_error(rc, "Pthread_cancel error");
+		return;
+	}
 }
 
 void Pthread_join(pthread_t tid, void **thread_return) {
     int rc;
 
-    if ((rc = pthread_join(tid, thread_return)) != 0)
-	posix_error(rc, "Pthread_join error");
+    if ((rc = pthread_join(tid, thread_return)) != 0) {
+		posix_error(rc, "Pthread_join error");
+		return;
+	}
 }
 
 /* $begin detach */
 void Pthread_detach(pthread_t tid) {
     int rc;
 
-    if ((rc = pthread_detach(tid)) != 0)
-	posix_error(rc, "Pthread_detach error");
+    if ((rc = pthread_detach(tid)) != 0) {
+		posix_error(rc, "Pthread_detach error");
+		return;
+	}
 }
 /* $end detach */
 
@@ -900,15 +935,20 @@ ssize_t Rio_readn(int fd, void *ptr, size_t nbytes)
 {
     ssize_t n;
   
-    if ((n = rio_readn(fd, ptr, nbytes)) < 0)
-	unix_error("Rio_readn error");
+    if ((n = rio_readn(fd, ptr, nbytes)) < 0) {
+		unix_error("Rio_readn error");
+		return 0;
+	}
+	
     return n;
 }
 
 void Rio_writen(int fd, void *usrbuf, size_t n) 
 {
-    if (rio_writen(fd, usrbuf, n) != n)
-	unix_error("Rio_writen error");
+    if (rio_writen(fd, usrbuf, n) != n) {
+		unix_error("Rio_writen error");
+		return;
+	}
 }
 
 void Rio_readinitb(rio_t *rp, int fd)
@@ -920,8 +960,11 @@ ssize_t Rio_readnb(rio_t *rp, void *usrbuf, size_t n)
 {
     ssize_t rc;
 
-    if ((rc = rio_readnb(rp, usrbuf, n)) < 0)
-	unix_error("Rio_readnb error");
+    if ((rc = rio_readnb(rp, usrbuf, n)) < 0) {
+		unix_error("Rio_readnb error");
+		return 0;
+	}
+	
     return rc;
 }
 
@@ -929,8 +972,11 @@ ssize_t Rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
 {
     ssize_t rc;
 
-    if ((rc = rio_readlineb(rp, usrbuf, maxlen)) < 0)
-	unix_error("Rio_readlineb error");
+    if ((rc = rio_readlineb(rp, usrbuf, maxlen)) < 0) {
+		unix_error("Rio_readlineb error");
+		return 0;
+	}
+	
     return rc;
 } 
 
@@ -1050,8 +1096,11 @@ int Open_clientfd(char *hostname, char *port)
 {
     int rc;
 
-    if ((rc = open_clientfd(hostname, port)) < 0) 
-	unix_error("Open_clientfd error");
+    if ((rc = open_clientfd(hostname, port)) < 0) {
+		unix_error("Open_clientfd error");
+		return 0;
+	} 
+	
     return rc;
 }
 
@@ -1059,8 +1108,11 @@ int Open_listenfd(char *port)
 {
     int rc;
 
-    if ((rc = open_listenfd(port)) < 0)
-	unix_error("Open_listenfd error");
+    if ((rc = open_listenfd(port)) < 0) {
+		unix_error("Open_listenfd error");
+		return 0;
+	}
+	
     return rc;
 }
 
