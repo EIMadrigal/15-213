@@ -24,10 +24,10 @@ typedef struct {
 
 cache_type caches[CACHE_TYPES];
 
-void init_cache();
 int find_cache(char *uri, int fd);
-void write_cache(char *uri, char *obj, int len);
 void free_cache();
 int64_t getTime();
+void init_cache();
+void write_cache(char *uri, char *obj, int len);
 
 #endif

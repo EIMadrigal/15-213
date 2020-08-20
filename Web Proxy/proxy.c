@@ -29,10 +29,10 @@ typedef struct {
 } reqHeader;
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
-void parseReq(int fd, reqLine *reqline, reqHeader *reqheader, int *numHeader, char *uri);
-void parseURI(char *uri, reqLine *reqline);
 void doit(int fd);
 reqHeader parseHeader(char *line);
+void parseReq(int fd, reqLine *reqline, reqHeader *reqheader, int *numHeader, char *uri);
+void parseURI(char *uri, reqLine *reqline);
 int send2Server(reqLine *reqline, reqHeader *reqheader, int numHeader);
 void *thread(void *vargp);
 
@@ -91,7 +91,6 @@ void parseReq(int fd, reqLine *reqline, reqHeader *reqheader, int *numHeader, ch
 
     parseURI(uri, reqline);
 
-
     int hasHost = 0, hasUserAG = 0, hasConnect = 0, hasProConnect = 0;
     *numHeader = 0;
     // read the request header carried by the browser
@@ -109,18 +108,14 @@ void parseReq(int fd, reqLine *reqline, reqHeader *reqheader, int *numHeader, ch
         if (!strncmp(buf, "Proxy-Connection:", 16)) {
             hasProConnect = 1;
         } 
-        printf("reqheader %s\n", buf);
+//printf("reqheader %s\n", buf);
         reqheader[(*numHeader)++] = parseHeader(buf);
         Rio_readlineb(&rio, buf, MAXLINE);
     }
 
     if (hasHost == 0) {
         strcpy(reqheader[(*numHeader)].headerKey, "Host");
-
-//printf("hostname %s\n", reqline->hostname);
         strcpy(buf, reqline->hostname);
-//printf("buf %s\n", buf);
-
         strcpy(reqheader[(*numHeader)++].headerVal, strcat(buf, "\r\n"));
     }
     if (hasUserAG == 0) {
@@ -128,7 +123,6 @@ void parseReq(int fd, reqLine *reqline, reqHeader *reqheader, int *numHeader, ch
         strcpy(reqheader[(*numHeader)++].headerVal, "Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 Firefox/10.0.3\r\n");
     }
  
-printf("hasConnect%d\n", hasConnect);
     if (hasConnect == 0) {
         strcpy(reqheader[(*numHeader)].headerKey, "Connection");
         strcpy(reqheader[(*numHeader)++].headerVal, "close\r\n");
@@ -138,9 +132,6 @@ printf("hasConnect%d\n", hasConnect);
         strcpy(reqheader[(*numHeader)].headerKey, "Proxy-Connection");
         strcpy(reqheader[(*numHeader)++].headerVal, "close\r\n");
     }
-    
-//    reqheader[(*numHeader)++] = parseHeader(connection, &hasHost);
-//    reqheader[(*numHeader)++] = parseHeader(proxy_connection, &hasHost);
 }
 
 /* Parse URI into reqline: hostname, port, path */
@@ -149,10 +140,7 @@ void parseURI(char *uri, reqLine *reqline) {
         fprintf(stderr, "Error: Invalid URI %s\n", uri);
         exit(1);
     }*/
-   
-
-   // char *t = strstr(uri, "//");
- //   uri = t + 2;
+    
     char *cur = uri;
     cur += strlen("http://");
     char *end = strstr(cur, ":");
@@ -179,32 +167,9 @@ void parseURI(char *uri, reqLine *reqline) {
 /* Return one pair of header */
 reqHeader parseHeader(char *buf) {
     reqHeader header;
- /*   {
-        strcpy(header.headerKey, "Host");
-        strcpy(header.headerVal, buf + strlen("Host: "));
-        return header;
-    }
-    if (strstr(buf, "User-Agent:")) {
-        strcpy(header.headerKey, "User-Agent");
-        strcpy(header.headerVal, buf + strlen("User-Agent: "));
-        return header;
-    }
-    if (strstr(buf, "Connection:")) {
-        strcpy(header.headerKey, "Connection");
-        strcpy(header.headerVal, buf + strlen("Connection: "));
-        return header;
-    }
-    if (strstr(buf, "Proxy-Connection:")) {
-        strcpy(header.headerKey, "Proxy-Connection");
-        strcpy(header.headerVal, buf + strlen("Proxy-Connection: "));
-        return header;
-    }*/
 
     char *end = strstr(buf, ": ");
-    *end = '\0';/*
-    if (strcmp(buf, "Host") == 0) {
-        *hasHost = 1;
-    }*/
+    *end = '\0';
     strcpy(header.headerKey, buf);
     strcpy(header.headerVal, end + 2);
     *end = ':';
@@ -216,41 +181,32 @@ void doit(int fd) {
     reqLine reqline;
     reqHeader reqheader[32];
     int numHeader;
-
-
     char uri[MAXLINE];
 
     parseReq(fd, &reqline, reqheader, &numHeader, uri);
 
+/*
 for (int i = 0; i < numHeader; ++i) {
     printf("%s %s\n", reqheader[i].headerKey, reqheader[i].headerVal);
-}
+}*/
 
-    
     int cacheHit = find_cache(uri, fd);
     if (cacheHit == 0) {
         return;
     }
 
-
-printf("%s %s %s\n", reqline.hostname, reqline.port, reqline.path);
+//printf("%s %s %s\n", reqline.hostname, reqline.port, reqline.path);
 
     // Let the proxy send the correct request
     int connfd = send2Server(&reqline, reqheader, numHeader);
 
-
     rio_t rio;
     Rio_readinitb(&rio, connfd);
-
 
     int size = 0;
     char buf[MAXLINE];
     char obj[MAX_OBJECT_SIZE];
     int objSize = 0;
-
-
-
-
 
     while ((size = Rio_readlineb(&rio, buf, MAXLINE)) > 0) {
         Rio_writen(fd, buf, size);
@@ -265,11 +221,6 @@ printf("%s %s %s\n", reqline.hostname, reqline.port, reqline.path);
     printf("%d\n", objSize);
 
 //    obj[objSize] = '\0';
-
-// printf("strlenobj=%d\n", strlen(obj));
-
- //      printf("%s\n", obj);
-//   printf("%s\n", uri);
 
     // write into cache
     if (objSize < MAX_OBJECT_SIZE)
@@ -295,8 +246,7 @@ int send2Server(reqLine *reqline, reqHeader *reqheader, int numHeader) {
     return clientfd;
 }
 
-void clienterror(int fd, char *cause, char *errnum, 
-		 char *shortmsg, char *longmsg) {
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
     char buf[MAXLINE];
 
     /* Print the HTTP response headers */

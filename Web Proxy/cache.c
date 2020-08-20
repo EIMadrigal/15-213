@@ -58,9 +58,6 @@ void write_cache(char *uri, char *obj, int len) {
         return;
     }
 
-  //  int len = strlen(obj);
-
-printf("len=%d\n", len);
     int type = 0;
     for (type = 0; type < CACHE_TYPES; ++type) {
         if (cacheSize[type] > len) { // store \0
@@ -76,9 +73,6 @@ printf("len=%d\n", len);
             break;
         }
     }
-
-
-printf("%d %d\n", type, lineIdx);
 
     // need to replace one block of this type
     cache_line *lineOut = cur;
@@ -113,9 +107,9 @@ void free_cache() {
     }
 }
 
-
 int64_t getTime() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv.tv_sec * 1000000 + tv.tv_usec;
 }
+
