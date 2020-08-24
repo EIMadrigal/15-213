@@ -136,32 +136,63 @@ void parseReq(int fd, reqLine *reqline, reqHeader *reqheader, int *numHeader, ch
 
 /* Parse URI into reqline: hostname, port, path */
 void parseURI(char *uri, reqLine *reqline) {
-   /* if (strstr(uri, "https://") != uri) {
+    if (uri == NULL) {
+        return;
+    }
+
+    if (strstr(uri, "http://") != uri && strstr(uri, "https://") != uri) {
         fprintf(stderr, "Error: Invalid URI %s\n", uri);
-        exit(1);
-    }*/
-    
-    char *cur = uri;
-    cur += strlen("http://");
-    char *end = strstr(cur, ":");
-    if (end == NULL) {
-        end = strstr(cur, "/");
-        *end = '\0';
-        strcpy(reqline->hostname, cur);
-        strcpy(reqline->port, "80");
+        return;
     }
-    else {
-        *end = '\0';
-        strcpy(reqline->hostname, cur);
-        *end = ':';
-        cur = end + 1;
-        end = strstr(cur, "/");
-        *end = '\0';
-        strcpy(reqline->port, cur);
-    }
+
+    // http request
+    if (strncmp(uri, "http://", 7) == 0) {
+        char *cur = uri;
+        cur += strlen("http://");
+        char *end = strstr(cur, ":");
+        if (end == NULL) {
+            end = strstr(cur, "/");
+            *end = '\0';
+            strcpy(reqline->hostname, cur);
+            strcpy(reqline->port, "80");
+        }
+        else {
+            *end = '\0';
+            strcpy(reqline->hostname, cur);
+            *end = ':';
+            cur = end + 1;
+            end = strstr(cur, "/");
+            *end = '\0';
+            strcpy(reqline->port, cur);
+        }
         
-    *end = '/';
-    strcpy(reqline->path, end);
+        *end = '/';
+        strcpy(reqline->path, end);
+    }
+    // https request
+    else {
+        char *cur = uri;
+        cur += strlen("https://");
+        char *end = strstr(cur, ":");
+        if (end == NULL) {
+            end = strstr(cur, "/");
+            *end = '\0';
+            strcpy(reqline->hostname, cur);
+            strcpy(reqline->port, "443");
+        }
+        else {
+            *end = '\0';
+            strcpy(reqline->hostname, cur);
+            *end = ':';
+            cur = end + 1;
+            end = strstr(cur, "/");
+            *end = '\0';
+            strcpy(reqline->port, cur);
+        }
+        
+        *end = '/';
+        strcpy(reqline->path, end);
+    }        
 }
 
 /* Return one pair of header */
@@ -211,19 +242,19 @@ for (int i = 0; i < numHeader; ++i) {
     while ((size = Rio_readlineb(&rio, buf, MAXLINE)) > 0) {
         Rio_writen(fd, buf, size);
         printf("receive %d bytes\n", size);
-        if (objSize < MAX_OBJECT_SIZE) {
-            strcpy(obj + objSize, buf);
-    //      memcpy(obj + objSize, buf, size);
-            objSize += size;
+        objSize += size;
+        if (objSize <= MAX_OBJECT_SIZE) {
+    //        strcpy(obj + objSize, buf);
+            memcpy(obj + objSize - size, buf, size);
+printf("%d\n", objSize);
+
         }
     }
 
     printf("%d\n", objSize);
 
-//    obj[objSize] = '\0';
-
     // write into cache
-    if (objSize < MAX_OBJECT_SIZE)
+    if (objSize <= MAX_OBJECT_SIZE)
         write_cache(uri, obj, objSize);
 
     Close(connfd);

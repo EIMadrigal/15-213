@@ -5,14 +5,13 @@ void init_cache() {
         caches[i].numOfLine = cacheCnt[i];
         caches[i].cachep = (cache_line *)malloc(cacheCnt[i] * sizeof(cache_line));
         cache_line *cur = caches[i].cachep;
-        for (int j = 0; j < cacheCnt[i]; ++j) {
+        for (int j = 0; j < cacheCnt[i]; ++j, ++cur) {
             cur->uri = (char *)malloc(MAXLINE * sizeof(char));
             cur->obj = (char *)malloc(cacheSize[i] * sizeof(char));
             cur->objSize = 0;
             cur->time = 0;
             pthread_rwlock_init(&cur->rwlock, NULL);
-        }
-        ++cur;
+       }
     }
 }
 
@@ -60,7 +59,7 @@ void write_cache(char *uri, char *obj, int len) {
 
     int type = 0;
     for (type = 0; type < CACHE_TYPES; ++type) {
-        if (cacheSize[type] > len) { // store \0
+        if (cacheSize[type] >= len) {
             break;
         }
     }
@@ -74,6 +73,8 @@ void write_cache(char *uri, char *obj, int len) {
         }
     }
 
+printf("type %d\n", type);
+    
     // need to replace one block of this type
     cache_line *lineOut = cur;
     if (lineIdx == cacheCnt[type]) {
@@ -86,12 +87,26 @@ void write_cache(char *uri, char *obj, int len) {
             }
         }
     }
+printf("copy\n");
+
+printf("uri = %s\n", uri);
+printf("len = %d, objsize = %ld\n", len, strlen(obj));
+printf("%d\n", lineOut->objSize);
+printf("%s %ld\n", lineOut->uri, strlen(lineOut->uri));
+
+
 
     pthread_rwlock_wrlock(&lineOut->rwlock);
     lineOut->time = getTime();
     lineOut->objSize = len;
-    strcpy(lineOut->uri, uri);
-    strcpy(lineOut->obj, obj);
+    //strcpy(lineOut->uri, uri);
+    //strcpy(lineOut->obj, obj);
+printf("%s\n", lineOut->uri);
+
+    memcpy(lineOut->uri, uri, MAXLINE);
+printf("%s\n", lineOut->uri);
+
+    memcpy(lineOut->obj, obj, len);
     pthread_rwlock_unlock(&lineOut->rwlock);
 }
 
