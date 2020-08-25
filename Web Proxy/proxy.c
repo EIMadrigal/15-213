@@ -4,9 +4,12 @@
 #define MAX_CACHE_SIZE 1049000
 #define MAX_OBJECT_SIZE 102400
 
+#define MAX_PROT_LEN 8
 #define MAX_HOSTNAME_LEN 32
 #define MAX_PORT_LEN 8
 #define MAX_PATH_LEN 32
+#define MAX_QUERY_LEN 64
+#define MAX_FRAG_LEN 64
 
 #define MAX_HEADER_KEY_LEN 32
 #define MAX_HEADER_VAL_LEN 128
@@ -17,9 +20,12 @@
 
 /* First line of HTTP request */
 typedef struct {
+    char protocol[MAX_PROT_LEN];
     char hostname[MAX_HOSTNAME_LEN];
     char port[MAX_PORT_LEN];
     char path[MAX_PATH_LEN];
+    char query[MAX_QUERY_LEN];
+    char fragment[MAX_FRAG_LEN];
 } reqLine;
 
 /* One header pair of HTTP request */
@@ -136,63 +142,76 @@ void parseReq(int fd, reqLine *reqline, reqHeader *reqheader, int *numHeader, ch
 
 /* Parse URI into reqline: hostname, port, path */
 void parseURI(char *uri, reqLine *reqline) {
-    if (uri == NULL) {
+    if (uri == NULL || reqline == NULL) {
         return;
     }
 
-    if (strstr(uri, "http://") != uri && strstr(uri, "https://") != uri) {
+    const char *p2 =  uri;
+    const char *p1 = strchr(p2, ':');
+    if (p1 == NULL) {
         fprintf(stderr, "Error: Invalid URI %s\n", uri);
         return;
     }
-
-    // http request
-    if (strncmp(uri, "http://", 7) == 0) {
-        char *cur = uri;
-        cur += strlen("http://");
-        char *end = strstr(cur, ":");
-        if (end == NULL) {
-            end = strstr(cur, "/");
-            *end = '\0';
-            strcpy(reqline->hostname, cur);
-            strcpy(reqline->port, "80");
+    int len = p1 - p2;
+    for (int i = 0; i < len; ++i) {
+        if (!isalpha(p2[i])) {
+            return;
         }
-        else {
-            *end = '\0';
-            strcpy(reqline->hostname, cur);
-            *end = ':';
-            cur = end + 1;
-            end = strstr(cur, "/");
-            *end = '\0';
-            strcpy(reqline->port, cur);
-        }
-        
-        *end = '/';
-        strcpy(reqline->path, end);
     }
-    // https request
+    memcpy(reqline->protocol, p2, len);
+    ++p1;
+    p2 = p1;
+    for (int i = 0; i < 2; ++i) {
+        if (*p2 != '/') {
+            return;
+        }
+        ++p2;
+    }
+
+    p1 = strchr(p2, ':');
+    // default port
+    if (p1 == NULL) {
+        p1 = strchr(p2, '/');
+        if (p1 == NULL) {
+            return;
+        }
+        memcpy(reqline->hostname, p2, p1 - p2);
+        strcpy(reqline->port, "80");
+    }
     else {
-        char *cur = uri;
-        cur += strlen("https://");
-        char *end = strstr(cur, ":");
-        if (end == NULL) {
-            end = strstr(cur, "/");
-            *end = '\0';
-            strcpy(reqline->hostname, cur);
-            strcpy(reqline->port, "443");
+        memcpy(reqline->hostname, p2, p1 - p2);
+        ++p1;
+        p2 = p1;
+        p1 = strchr(p2, '/');
+        if (p1 == NULL) {
+            return;
         }
-        else {
-            *end = '\0';
-            strcpy(reqline->hostname, cur);
-            *end = ':';
-            cur = end + 1;
-            end = strstr(cur, "/");
-            *end = '\0';
-            strcpy(reqline->port, cur);
+        memcpy(reqline->port, p2, p1 - p2);
+    }
+
+    // for convenience, I count '/' as part of path, but not for query and fragment
+    p2 = p1;
+    while (*p1 != '\0' && *p1 != '?' && *p1 != '#') {
+        ++p1;
+    }
+    memcpy(reqline->path, p2, p1 - p2);
+    p2 = p1;
+    if (*p1 == '?') {
+        ++p2;
+        p1 = p2;
+        while (*p1 != '\0' && *p1 != '#') {
+            ++p1;
         }
-        
-        *end = '/';
-        strcpy(reqline->path, end);
-    }        
+        memcpy(reqline->query, p2, p1 - p2);
+    }
+    if (*p1 == '#') {
+        ++p1;
+        p2 = p1;
+        while (*p1 != '\0') {
+            ++p1;
+        }
+        memcpy(reqline->fragment, p2, p1 - p2);
+    }
 }
 
 /* Return one pair of header */
@@ -226,8 +245,6 @@ for (int i = 0; i < numHeader; ++i) {
         return;
     }
 
-//printf("%s %s %s\n", reqline.hostname, reqline.port, reqline.path);
-
     // Let the proxy send the correct request
     int connfd = send2Server(&reqline, reqheader, numHeader);
 
@@ -244,10 +261,7 @@ for (int i = 0; i < numHeader; ++i) {
         printf("receive %d bytes\n", size);
         objSize += size;
         if (objSize <= MAX_OBJECT_SIZE) {
-    //        strcpy(obj + objSize, buf);
             memcpy(obj + objSize - size, buf, size);
-printf("%d\n", objSize);
-
         }
     }
 

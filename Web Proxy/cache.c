@@ -87,25 +87,14 @@ printf("type %d\n", type);
             }
         }
     }
-printf("copy\n");
 
 printf("uri = %s\n", uri);
 printf("len = %d, objsize = %ld\n", len, strlen(obj));
-printf("%d\n", lineOut->objSize);
-printf("%s %ld\n", lineOut->uri, strlen(lineOut->uri));
-
-
 
     pthread_rwlock_wrlock(&lineOut->rwlock);
     lineOut->time = getTime();
     lineOut->objSize = len;
-    //strcpy(lineOut->uri, uri);
-    //strcpy(lineOut->obj, obj);
-printf("%s\n", lineOut->uri);
-
     memcpy(lineOut->uri, uri, MAXLINE);
-printf("%s\n", lineOut->uri);
-
     memcpy(lineOut->obj, obj, len);
     pthread_rwlock_unlock(&lineOut->rwlock);
 }
