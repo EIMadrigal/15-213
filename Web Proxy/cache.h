@@ -31,3 +31,4 @@ void init_cache();
 void write_cache(char *uri, char *obj, int len);
 
 #endif
+

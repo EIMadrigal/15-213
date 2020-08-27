@@ -38,7 +38,12 @@ int find_cache(char *uri, int fd) {
         return -1;
     }
 
-    // may need confirm the uri is true, because write process may have changed uri???
+    // reconfirm the URI since a write process may have changed it
+    pthread_rwlock_rdlock(&cur->rwlock);
+    if (strcmp(uri, cur->uri) != 0) {
+        pthread_rwlock_unlock(&cur->rwlock);
+        return -1;
+    }
 
     // If read successfully, update time stamp
     if (pthread_rwlock_trywrlock(&cur->rwlock) != 0) {
@@ -72,8 +77,6 @@ void write_cache(char *uri, char *obj, int len) {
             break;
         }
     }
-
-printf("type %d\n", type);
     
     // need to replace one block of this type
     cache_line *lineOut = cur;
@@ -87,9 +90,6 @@ printf("type %d\n", type);
             }
         }
     }
-
-printf("uri = %s\n", uri);
-printf("len = %d, objsize = %ld\n", len, strlen(obj));
 
     pthread_rwlock_wrlock(&lineOut->rwlock);
     lineOut->time = getTime();

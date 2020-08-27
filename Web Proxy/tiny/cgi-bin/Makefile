@@ -8,3 +8,4 @@ adder: adder.c
 
 clean:
 	rm -f adder *~
+
