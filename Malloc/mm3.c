@@ -1,28 +1,17 @@
 /*
- * mm-naive.c - The fastest, least memory-efficient malloc package.
+ * mm.c - The fastest, memory-efficient malloc package.
  * 
- * In this naive approach, a block is allocated by simply incrementing
- * the brk pointer.  A block is pure payload. There are no headers or
- * footers.  Blocks are never coalesced or reused. Realloc is
- * implemented directly using mm_malloc and mm_free.
- *
- * NOTE TO STUDENTS: Replace this header comment with your own header
- * comment that gives a high level description of your solution.
+ * Segregated Free Lists + Best Fit + Bidirectional Boundary Tag.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <unistd.h>
 #include <string.h>
-#include <math.h>
 
 #include "mm.h"
 #include "memlib.h"
 
-/*********************************************************
- * NOTE TO STUDENTS: Before you do anything else, please
- * provide your team information in the following struct.
- ********************************************************/
 team_t team = {
     /* Team name */
     "Loser",
@@ -36,27 +25,22 @@ team_t team = {
     ""
 };
 
-/* if DEBUG is defined, enable printing on dbg_printf and contracts */
-//#define DEBUG
+/* If DEBUG is defined, enable printing on dbg_printf and contracts */
+#define DEBUG
 
 #ifdef DEBUG
 #define dbg_printf(...) printf(__VA_ARGS__)
 #define CHECKHEAP(verbose) mm_checkheap(verbose)
 #else
-#define DBG_PRINTF(...)
+#define dbg_printf(...)
 #define CHECKHEAP(verbose)
 #endif
-
-#define MAXLISTS 16
-
-/* Private variables */
-static char *heap_listp;
-void *seg_list[MAXLISTS];
 
 /* Basic constants and macros */
 #define WSIZE 4                     /* Word and header/footer size (bytes) */
 #define DSIZE 8                     /* Double word size (bytes) */
-#define CHUNKSIZE (1 << 12)         /* Extend heap by this amount (bytes) */  
+#define CHUNKSIZE (1 << 12)         /* Extend heap by this amount (bytes) */
+#define MAXLISTS 16                 /* Number of free lists */    
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -91,13 +75,16 @@ void *seg_list[MAXLISTS];
 #define PREV_POS(bp) ((char *)(bp))
 #define NEXT_POS(bp) ((char *)(bp) + WSIZE) 
 
-
 /* dereference the prev and next ptr */
 #define PREV(bp) (*(char **)(PREV_POS(bp)))
 #define NEXT(bp) (*(char **)(NEXT_POS(bp)))
 
 /* set the value of prev and next field */
 #define SET_PTR(from, to) (*(unsigned int *)(from) = (unsigned int)(to))
+
+/* Private variables */
+static char *heap_listp;
+void *seg_list[MAXLISTS];
 
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
@@ -158,7 +145,7 @@ void *mm_malloc(size_t size) {
         asize = 2 * DSIZE + DSIZE * ((size - 1) / DSIZE);
     }
 
-    size_t cur_class_size = 1;
+    size_t cur_class_size = 2 * DSIZE;
     for (int i = 0; i < MAXLISTS; ++i) {
         if (seg_list[i] != NULL && cur_class_size >= asize) {
             bp = seg_list[i];
@@ -198,12 +185,15 @@ void mm_free(void *ptr) {
     CHECKHEAP(1);
 }
 
+/*
+ * Insert block into the seg list
+ */
 void insert(void *ptr, size_t size) {
     /* find the right list */
     int class_num;
     size_t ssize = size;
     for (class_num = 0; class_num < MAXLISTS - 1; ++class_num) {
-        if (ssize <= 1) {
+        if (ssize <= 2 * DSIZE) {
             break;
         }
         ssize >>= 1;
@@ -306,11 +296,14 @@ void *mm_realloc(void *ptr, size_t size) {
     return newptr;
 }
 
+/*
+ * Delete the block ptr points to in the seg list
+ */
 void delete(void *ptr) {
     int size = GET_SIZE(HDRP(ptr));
     int classnum = 0;
     for (classnum = 0; classnum < MAXLISTS - 1; ++classnum) {
-        if (size <= 1) {
+        if (size <= 2 * DSIZE) {
             break;
         }
         size >>= 1;
@@ -328,13 +321,9 @@ void delete(void *ptr) {
     }
     /* first one*/
     else {
+        seg_list[classnum] = NEXT(ptr);
         if (NEXT(ptr) != NULL) {
-            seg_list[classnum] = NEXT(ptr);
             SET_PTR(PREV_POS(NEXT(ptr)), NULL);
-        }
-        /*nothing to do*/
-        else {
-            seg_list[classnum] = NULL;
         }
     }
 }
@@ -444,6 +433,9 @@ void checkheap(int verbose) {
     }
 }
 
+/*
+ * Extends the heap with a new free block
+ */
 static void *extend_heap(size_t words) {
    /* Allocate an even number of words to maintain alignment */
    size_t size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
@@ -463,6 +455,9 @@ static void *extend_heap(size_t words) {
    return coalesce(bp);
 }
 
+/*
+ * Use boundary-tag to merge adjacent free blocks in O(1)
+ */
 static void *coalesce(void *bp) {
     size_t prev_alloc = GET_ALLOC(HDRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
@@ -506,8 +501,9 @@ static void *coalesce(void *bp) {
     return bp;
 }
 
-/* Place the req block at the beginning of the free block, 
- * splitting only if the size of the remainder would equal or exceed the min block size */
+/*
+ * Place the req block in cur free block, split if the remainder size exceed min block 
+ */
 static void* place(void *bp, size_t asize) {
     size_t size = GET_SIZE(HDRP(bp));
 
@@ -517,7 +513,7 @@ static void* place(void *bp, size_t asize) {
         PUT(FTRP(bp), PACK(size, 1));
     }
 
-    else if (asize >= 96) {
+    else if (asize >= 112) {
         PUT(HDRP(bp), PACK(size - asize, 0));
         PUT(FTRP(bp), PACK(size - asize, 0));
         PUT(HDRP(NEXT_BLKP(bp)), PACK(asize, 1));
